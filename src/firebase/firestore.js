@@ -1,6 +1,6 @@
 import {
-  collection, doc, getDocs, addDoc, setDoc, getDoc, updateDoc,
-  query, orderBy, Timestamp
+  collection, doc, getDocs, addDoc, setDoc, getDoc, deleteDoc,
+  query, orderBy, Timestamp, writeBatch
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -116,4 +116,19 @@ export async function migrateLocalStorageToFirestore(uid) {
   } catch (e) {
     console.error('Error migrando datos locales:', e);
   }
+}
+
+/**
+ * Elimina todas las sesiones del usuario y su documento (racha y logros).
+ * Implementa el derecho de supresión del titular (RF08).
+ */
+export async function deleteUserDataFromFirestore(uid) {
+  const snapshot = await getDocs(sessionsCol(uid));
+  const docs = snapshot.docs;
+  for (let i = 0; i < docs.length; i += 400) {
+    const batch = writeBatch(db);
+    docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+  await deleteDoc(userDoc(uid));
 }

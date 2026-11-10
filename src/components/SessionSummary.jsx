@@ -1,11 +1,12 @@
 import { formatTime } from '../utils/formatTime';
 
-export default function SessionSummary({ stats, elapsed, onRestart, onClose }) {
-  const totalFrames = stats.goodPostureTime + stats.badPostureTime;
-  const goodPct = totalFrames > 0 ? Math.round((stats.goodPostureTime / totalFrames) * 100) : 0;
-  const badPct = totalFrames > 0 ? Math.round((stats.badPostureTime / totalFrames) * 100) : 0;
+export default function SessionSummary({ stats, elapsed, eyeBreaks = { shown: 0, done: 0 }, onRestart, onClose }) {
+  // Tiempos en segundos reales (antes se contaban fotogramas).
+  const totalSeconds = stats.goodPostureTime + stats.badPostureTime;
+  const goodPct = totalSeconds > 0 ? Math.round((stats.goodPostureTime / totalSeconds) * 100) : 0;
+  const badPct = totalSeconds > 0 ? 100 - goodPct : 0;
 
-  const totalAlerts = stats.headForwardCount + stats.shoulderImbalanceCount;
+  const totalAlerts = stats.alertsCount ?? (stats.headForwardCount + stats.shoulderImbalanceCount);
 
   let grade = 'A';
   let gradeColor = '#2d6a4f';
@@ -19,7 +20,7 @@ export default function SessionSummary({ stats, elapsed, onRestart, onClose }) {
       <div className="summary-card">
         <div className="summary-header">
           <h2>Resumen de sesion</h2>
-          <button className="summary-close" onClick={close}>&#x2715;</button>
+          <button className="summary-close" onClick={onClose}>&#x2715;</button>
         </div>
 
         <div className="summary-grade" style={{ color: gradeColor }}>
@@ -54,6 +55,14 @@ export default function SessionSummary({ stats, elapsed, onRestart, onClose }) {
           <div className="summary-detail">
             <span>Desbalance de hombros:</span>
             <span>{stats.shoulderImbalanceCount} veces</span>
+          </div>
+          <div className="summary-detail">
+            <span>Tiempo en buena postura:</span>
+            <span>{formatTime(Math.round(stats.goodPostureTime))}</span>
+          </div>
+          <div className="summary-detail">
+            <span>Pausas visuales realizadas:</span>
+            <span>{eyeBreaks.done} de {eyeBreaks.shown}</span>
           </div>
         </div>
 

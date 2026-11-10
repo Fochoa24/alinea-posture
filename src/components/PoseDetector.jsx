@@ -18,6 +18,7 @@ import SoundToggle from './SoundToggle';
 import PomodoroTimer from './PomodoroTimer';
 import MeetingMode from './MeetingMode';
 import WarmLightFilter from './WarmLightFilter';
+import CalibrationOverlay from './CalibrationOverlay';
 
 const COLORS = {
   good: '#2d6a4f',
@@ -29,9 +30,21 @@ export default function PoseDetector({ soundEnabled, settings, onEndSession, onN
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const { initializePose, startCamera, stopCamera } = useMediaPipe();
-  const { postureState, stats, processResults, resetStats } = usePostureDetection();
-  const { elapsed, stretchReminder, dismissStretch, start: startTimer, stop: stopTimer } = useSessionTimer();
-  const { eyeReminder, eyeCountdown, dismissEye, start: startEye, stop: stopEye } = useEyeRest();
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const observationMode = Boolean(settings.observationMode);
+  const alertSoundRef = useRef(() => {});
+  const {
+    postureState, stats, processResults, resetStats,
+    baseline, calibration, startCalibration,
+  } = usePostureDetection(settingsRef, () => alertSoundRef.current());
+  const [skipCalibration, setSkipCalibration] = useState(false);
+  const { elapsed, stretchReminder, dismissStretch, start: startTimer, stop: stopTimer } =
+    useSessionTimer(settings.stretchInterval || 25);
+  const {
+    eyeReminder, eyeCountdown, eyeTotal, eyeBreaks, dismissEye, resetBreaks,
+    start: startEye, stop: stopEye,
+  } = useEyeRest(settings.eyeInterval || 20);
   const { streak, updateStreak } = useStreak();
 
   const pomodoroCBs = useRef({
@@ -48,9 +61,12 @@ export default function PoseDetector({ soundEnabled, settings, onEndSession, onN
   const [sound, setSound] = useState(soundEnabled);
   const [meetingMode, setMeetingMode] = useState(false);
   const lastPostureRef = useRef(null);
-  const lastSoundTimeRef = useRef(0);
 
-  const isAlertSuppressed = meetingMode;
+  // En modo reunión y en modo observación (semana 0 del piloto) se mide, pero no se alerta.
+  const isAlertSuppressed = meetingMode || observationMode;
+  alertSoundRef.current = () => {
+    if (sound && !isAlertSuppressed) playPostureAlert();
+  };
 
   const drawOnCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -138,16 +154,6 @@ export default function PoseDetector({ soundEnabled, settings, onEndSession, onN
   }, [postureState]);
 
   useEffect(() => {
-    if (postureState === 'bad' && sound && !isAlertSuppressed) {
-      const now = Date.now();
-      if (now - lastSoundTimeRef.current > 10000) {
-        playPostureAlert();
-        lastSoundTimeRef.current = now;
-      }
-    }
-  }, [postureState, sound, meetingMode]);
-
-  useEffect(() => {
     if (stretchReminder && sound && !isAlertSuppressed) playStretchChime();
   }, [stretchReminder, sound, meetingMode]);
 
@@ -161,12 +167,20 @@ export default function PoseDetector({ soundEnabled, settings, onEndSession, onN
     stopEye();
     pausePomo();
 
+    const round = (x) => Math.round(x * 10) / 10;
     const sessionData = {
       ...stats,
+      goodPostureTime: round(stats.goodPostureTime),
+      badPostureTime: round(stats.badPostureTime),
+      observedTime: round(stats.observedTime),
+      timeUnit: 'seconds',
       elapsed,
       pomodoroCycles: cycles,
-      goodPostureTime: stats.goodPostureTime,
-      badPostureTime: stats.badPostureTime,
+      eyeBreaksShown: eyeBreaks.shown,
+      eyeBreaksDone: eyeBreaks.done,
+      calibrated: Boolean(baseline),
+      sensitivity: settings.sensitivity || 'medium',
+      observationMode,
     };
     await saveSession(sessionData);
 
@@ -187,6 +201,7 @@ export default function PoseDetector({ soundEnabled, settings, onEndSession, onN
     setShowSummary(false);
     lastPostureRef.current = null;
     resetPomo();
+    resetBreaks();
     const init = async () => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -209,6 +224,7 @@ export default function PoseDetector({ soundEnabled, settings, onEndSession, onN
       <SessionSummary
         stats={stats}
         elapsed={elapsed}
+        eyeBreaks={eyeBreaks}
         onRestart={handleRestart}
         onClose={onEndSession}
       />
@@ -241,10 +257,21 @@ export default function PoseDetector({ soundEnabled, settings, onEndSession, onN
           height={480}
         />
         {meetingMode && <div className="meeting-badge">{'\u{1F4BB}'} Modo reunion</div>}
-        <PostureAlert state={meetingMode ? 'good' : postureState} onReset={resetStats} />
+        {observationMode && !meetingMode && (
+          <div className="meeting-badge">{'\u{1F50D}'} Modo observacion: se mide sin alertar</div>
+        )}
+        {(calibration.active || (!baseline && !skipCalibration)) && (
+          <CalibrationOverlay
+            calibration={calibration}
+            hasBaseline={Boolean(baseline)}
+            onStart={startCalibration}
+            onSkip={() => setSkipCalibration(true)}
+          />
+        )}
+        <PostureAlert state={isAlertSuppressed ? 'good' : postureState} />
       </div>
 
-      <EyeRestReminder countdown={eyeCountdown} />
+      <EyeRestReminder countdown={eyeCountdown} total={eyeTotal} />
 
       <PomodoroTimer
         phase={phase}
@@ -267,23 +294,34 @@ export default function PoseDetector({ soundEnabled, settings, onEndSession, onN
           </span>
         </div>
         <div className="stat-card">
-          <span className="stat-label">Cabeza adelantada</span>
+          <span className="stat-label">Alertas: cabeza adelantada</span>
           <span className="stat-value">{stats.headForwardCount}</span>
         </div>
         <div className="stat-card">
-          <span className="stat-label">Desbalance hombros</span>
+          <span className="stat-label">Alertas: hombros</span>
           <span className="stat-value">{stats.shoulderImbalanceCount}</span>
         </div>
       </div>
 
       <PostureHistory history={history} />
 
-      <button className="end-session-btn" onClick={handleEndSession}>
-        Finalizar sesion
-      </button>
+      <div className="session-actions">
+        <button className="summary-btn secondary" onClick={startCalibration} disabled={calibration.active}>
+          {baseline ? 'Recalibrar postura' : 'Calibrar postura'}
+        </button>
+        <button className="end-session-btn" onClick={handleEndSession}>
+          Finalizar sesion
+        </button>
+      </div>
 
       {stretchReminder && !meetingMode && <StretchReminder onDismiss={dismissStretch} />}
-      {eyeReminder && !meetingMode && <EyeRestAlert onDismiss={dismissEye} />}
+      {eyeReminder && !meetingMode && (
+        <EyeRestAlert
+          intervalMinutes={settings.eyeInterval || 20}
+          onDone={() => dismissEye(true)}
+          onSkip={() => dismissEye(false)}
+        />
+      )}
     </div>
   );
 }

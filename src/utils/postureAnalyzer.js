@@ -1,77 +1,87 @@
-import { LANDMARKS, POSTURE_THRESHOLDS } from './constants';
+import { LANDMARKS, POSTURE_THRESHOLDS, SENSITIVITY_PRESETS } from './constants';
 
 function isVisible(landmark) {
-  return landmark && (landmark.visibility === undefined || landmark.visibility >= POSTURE_THRESHOLDS.minLandmarkVisibility);
+  return Boolean(landmark) &&
+    (landmark.visibility === undefined || landmark.visibility >= POSTURE_THRESHOLDS.minLandmarkVisibility);
 }
 
-function headForwardScore(landmarks) {
+/**
+ * Extrae rasgos posturales invariantes a la escala (distancia a la cámara)
+ * a partir de los 33 puntos de MediaPipe Pose.
+ *
+ * - neckRatio: distancia vertical nariz→línea de hombros dividida por el ancho de hombros.
+ *   Al adelantar o bajar la cabeza (o acercarse encorvado a la pantalla) este valor baja.
+ * - tilt: |Δy| / |Δx| de los hombros. Al inclinar un hombro este valor sube.
+ *
+ * Devuelve null si los puntos necesarios no son visibles.
+ */
+export function extractFeatures(landmarks) {
+  if (!landmarks || landmarks.length < 25) return null;
   const nose = landmarks[LANDMARKS.NOSE];
-  const leftShoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
-  const rightShoulder = landmarks[LANDMARKS.RIGHT_SHOULDER];
-  const leftEar = landmarks[LANDMARKS.LEFT_EAR];
-  const rightEar = landmarks[LANDMARKS.RIGHT_EAR];
+  const ls = landmarks[LANDMARKS.LEFT_SHOULDER];
+  const rs = landmarks[LANDMARKS.RIGHT_SHOULDER];
+  if (!isVisible(nose) || !isVisible(ls) || !isVisible(rs)) return null;
 
-  if (!isVisible(nose) || !isVisible(leftShoulder) || !isVisible(rightShoulder)) {
-    return 0;
-  }
+  const shoulderWidth = Math.hypot(ls.x - rs.x, ls.y - rs.y);
+  if (shoulderWidth < 1e-3) return null;
 
-  let score = 0;
-  let checks = 0;
+  const shoulderMidY = (ls.y + rs.y) / 2;
+  const neckRatio = (shoulderMidY - nose.y) / shoulderWidth;
+  const dx = Math.abs(ls.x - rs.x);
+  const tilt = dx > 1e-3 ? Math.abs(ls.y - rs.y) / dx : 0;
 
-  const shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2;
-  const shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2;
-  const noseToShoulderY = shoulderMidY - nose.y;
-  const noseVerticalRatio = noseToShoulderY / (shoulderMidY || 0.01);
-  if (noseVerticalRatio < 0.25) score += 1;
-  checks++;
-
-  if (isVisible(leftEar) && isVisible(rightEar)) {
-    const earMidZ = (leftEar.z + rightEar.z) / 2;
-    const noseZ = nose.z;
-    const zDiff = earMidZ - noseZ;
-    if (zDiff > 0.3) score += 1;
-    checks++;
-
-    const earMidY = (leftEar.y + rightEar.y) / 2;
-    const earNoseDy = Math.abs(earMidY - nose.y);
-    const shoulderSpan = Math.abs(leftShoulder.y - rightShoulder.y) || 0.01;
-    const earNoseRatio = earNoseDy / shoulderSpan;
-    if (earNoseRatio < 0.15) score += 1;
-    checks++;
-  }
-
-  return checks > 0 ? score / checks : 0;
+  return { neckRatio, tilt };
 }
 
-function shoulderTiltScore(landmarks) {
-  const leftShoulder = landmarks[LANDMARKS.LEFT_SHOULDER];
-  const rightShoulder = landmarks[LANDMARKS.RIGHT_SHOULDER];
-
-  if (!isVisible(leftShoulder) || !isVisible(rightShoulder)) {
-    return 0;
-  }
-
-  const shoulderDy = Math.abs(leftShoulder.y - rightShoulder.y);
-  const shoulderDx = Math.abs(leftShoulder.x - rightShoulder.x);
-  if (shoulderDx === 0) return 0;
-
-  const tiltRatio = shoulderDy / shoulderDx;
-
-  if (tiltRatio > POSTURE_THRESHOLDS.shoulderTiltThreshold) return 1;
-  return 0;
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-export function analyzePosture(landmarks) {
-  if (!landmarks || landmarks.length < 25) {
-    return { isBadPosture: false, headForward: false, shoulderImbalance: false };
+/**
+ * Construye la postura de referencia del usuario a partir de las muestras
+ * recolectadas durante la calibración. Usa la mediana para ignorar movimientos puntuales.
+ */
+export function buildBaseline(samples) {
+  const valid = samples.filter(Boolean);
+  if (valid.length < POSTURE_THRESHOLDS.minCalibrationSamples) return null;
+  return {
+    neckRatio: median(valid.map(s => s.neckRatio)),
+    tilt: median(valid.map(s => s.tilt)),
+    samples: valid.length,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Evalúa un fotograma.
+ * - Con baseline: compara contra la postura neutra del propio usuario (calibración personal).
+ * - Sin baseline: usa umbrales poblacionales conservadores.
+ * La sensibilidad (low/medium/high) define cuánta desviación se tolera.
+ */
+export function analyzePosture(landmarks, { baseline = null, sensitivity = 'medium' } = {}) {
+  const features = extractFeatures(landmarks);
+  if (!features) {
+    return { isBadPosture: false, headForward: false, shoulderImbalance: false, features: null };
   }
 
-  const hScore = headForwardScore(landmarks);
-  const sScore = shoulderTiltScore(landmarks);
+  const preset = SENSITIVITY_PRESETS[sensitivity] || SENSITIVITY_PRESETS.medium;
+  let headForward;
+  let shoulderImbalance;
 
-  const headForward = hScore >= POSTURE_THRESHOLDS.headForwardScoreThreshold;
-  const shoulderImbalance = sScore > 0;
-  const isBadPosture = headForward || shoulderImbalance;
+  if (baseline) {
+    headForward = features.neckRatio < baseline.neckRatio * (1 - preset.neckDrop);
+    shoulderImbalance = features.tilt > baseline.tilt + preset.tiltDelta;
+  } else {
+    headForward = features.neckRatio < preset.absoluteNeckRatio;
+    shoulderImbalance = features.tilt > preset.absoluteTilt;
+  }
 
-  return { isBadPosture, headForward, shoulderImbalance };
+  return {
+    isBadPosture: headForward || shoulderImbalance,
+    headForward,
+    shoulderImbalance,
+    features,
+  };
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth';
-import { setCurrentUser } from './utils/storage';
+import { setCurrentUser, hasConsent, saveConsent } from './utils/storage';
+import ConsentScreen from './components/ConsentScreen';
 import PoseDetector from './components/PoseDetector';
 import AuthScreen from './components/AuthScreen';
 import DarkModeToggle from './components/DarkModeToggle';
@@ -20,6 +21,7 @@ export default function App() {
   const [showAchievements, setShowAchievements] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [achievementToast, setAchievementToast] = useState(null);
+  const [showConsent, setShowConsent] = useState(false);
   const { settings, updateSettings } = useSettings();
 
   useEffect(() => {
@@ -39,6 +41,11 @@ export default function App() {
       setAchievementToast(ids[0]);
       setTimeout(() => setAchievementToast(null), 4000);
     }
+  };
+
+  const handleStart = () => {
+    if (hasConsent()) setStarted(true);
+    else setShowConsent(true);
   };
 
   const handleExportCSV = async () => {
@@ -123,12 +130,13 @@ export default function App() {
               <h2>Cuida tu postura desde tu espacio de trabajo</h2>
               <p>
                 Alinea detecta problemas posturales en tiempo real usando tu camara.
-                Todo el procesamiento ocurre en tu navegador - ningun dato sale de tu computadora.
+                La imagen se procesa solo en tu navegador y nunca se envia; en la nube se guardan
+                unicamente metricas resumidas de tus sesiones.
               </p>
               <div className="features-grid">
                 <div className="feature-item">
                   <span className="feature-icon">&#x1F512;</span>
-                  <span>100% Privado</span>
+                  <span>Video 100% local</span>
                 </div>
                 <div className="feature-item">
                   <span className="feature-icon">&#x26A1;</span>
@@ -145,12 +153,13 @@ export default function App() {
               </div>
               <button
                 className="start-button"
-                onClick={() => setStarted(true)}
+                onClick={handleStart}
               >
                 Iniciar sesion postural
               </button>
               <p className="privacy-note">
-                Necesitamos acceso a tu camara. Los frames nunca se envian a ningun servidor.
+                Necesitamos acceso a tu camara. Los fotogramas nunca se envian a ningun servidor.
+                Alinea no realiza diagnosticos medicos.
               </p>
             </div>
           </div>
@@ -169,7 +178,18 @@ export default function App() {
       </footer>
 
       {showSettings && (
-        <SettingsPanel settings={settings} onUpdate={updateSettings} onClose={() => setShowSettings(false)} />
+        <SettingsPanel
+          settings={settings}
+          onUpdate={updateSettings}
+          onClose={() => setShowSettings(false)}
+          onDataDeleted={() => window.location.reload()}
+        />
+      )}
+      {showConsent && (
+        <ConsentScreen
+          onAccept={() => { saveConsent(); setShowConsent(false); setStarted(true); }}
+          onCancel={() => setShowConsent(false)}
+        />
       )}
       {showAchievements && <Achievements onClose={() => setShowAchievements(false)} />}
       {showAnalytics && <SessionAnalytics onClose={() => setShowAnalytics(false)} />}

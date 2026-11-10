@@ -1,9 +1,26 @@
 export const POSTURE_THRESHOLDS = {
   minLandmarkVisibility: 0.5,
-  headForwardScoreThreshold: 0.65,
-  shoulderTiltThreshold: 0.04,
-  postureHoldFrames: 30,
-  warningCooldownMs: 10000,
+  // La mala postura debe sostenerse este tiempo (en ms reales, no en fotogramas)
+  // para emitir una alerta. Así el comportamiento no depende de los FPS del equipo.
+  holdMs: 3000,
+  // Tiempo mínimo entre dos alertas consecutivas.
+  cooldownMs: 10000,
+  // Una buena postura breve (< recoveryMs) no reinicia el conteo de mala postura.
+  recoveryMs: 700,
+  // Saltos mayores entre fotogramas (pestaña en segundo plano) no se suman al tiempo.
+  maxFrameGapMs: 1000,
+  calibrationMs: 10000,
+  minCalibrationSamples: 30,
+};
+
+/**
+ * Presets de sensibilidad. Con calibración se usa la desviación relativa a la
+ * postura neutra del usuario; sin calibración, umbrales absolutos conservadores.
+ */
+export const SENSITIVITY_PRESETS = {
+  low: { neckDrop: 0.25, tiltDelta: 0.10, absoluteNeckRatio: 0.45, absoluteTilt: 0.14 },
+  medium: { neckDrop: 0.18, tiltDelta: 0.07, absoluteNeckRatio: 0.55, absoluteTilt: 0.11 },
+  high: { neckDrop: 0.12, tiltDelta: 0.05, absoluteNeckRatio: 0.65, absoluteTilt: 0.08 },
 };
 
 export const LANDMARKS = {

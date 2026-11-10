@@ -1,7 +1,12 @@
+import { useState, useEffect } from 'react';
 import { COLORS } from '../utils/constants';
 
-export default function PostureAlert({ state, onReset }) {
-  if (state === 'good' || state === 'no_person') return null;
+// Antes el botón "Entendido" reiniciaba todas las estadísticas de la sesión.
+// Ahora solo oculta el aviso actual; reaparece en la siguiente alerta.
+export default function PostureAlert({ state }) {
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => { if (state !== 'bad') setDismissed(false); }, [state]);
+  if (state === 'good' || state === 'no_person' || dismissed) return null;
 
   return (
     <div className="posture-alert" style={{
@@ -22,9 +27,9 @@ export default function PostureAlert({ state, onReset }) {
       zIndex: 10,
     }}>
       <span style={{ fontSize: '20px' }}>&#x26A0;</span>
-      <span style={{ fontWeight: 500 }}>Endereza tu postura - relaja los hombros y alinea la cabeza</span>
+      <span role="alert" style={{ fontWeight: 500 }}>Endereza tu postura - relaja los hombros y alinea la cabeza</span>
       <button
-        onClick={onReset}
+        onClick={() => setDismissed(true)}
         style={{
           backgroundColor: COLORS.warning,
           color: 'white',

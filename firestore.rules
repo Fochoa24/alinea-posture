@@ -1,0 +1,23 @@
+rules_version = '2';
+// RNF02: cada usuario solo puede leer y escribir sus propios datos.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /sessions/{sessionId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        // Solo métricas numéricas resumidas: nunca imágenes ni puntos corporales.
+        allow create: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly([
+            'elapsed', 'goodPostureTime', 'badPostureTime', 'observedTime', 'timeUnit',
+            'alertsCount', 'headForwardCount', 'shoulderImbalanceCount', 'pomodoroCycles',
+            'eyeBreaksShown', 'eyeBreaksDone', 'calibrated', 'sensitivity', 'observationMode', 'date'
+          ]);
+        allow update: if false;
+      }
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

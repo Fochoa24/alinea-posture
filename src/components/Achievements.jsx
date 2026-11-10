@@ -8,7 +8,8 @@ const ACHIEVEMENT_DEFS = [
   { id: 'streak_3', name: 'Racha de 3', desc: '3 dias seguidos entrenando', icon: '\u{1F525}' },
   { id: 'streak_7', name: 'Racha de 7', desc: '7 dias seguidos entrenando', icon: '\u{1F31F}' },
   { id: 'good_posture_90', name: 'Postura perfecta', desc: '90%+ buena postura en una sesion', icon: '\u{2B50}' },
-  { id: 'hour_session', name: 'Maraton', desc: 'Sesion de mas de 1 hora', icon: '\u{23F1}' },
+  // Reemplaza a "Maraton" (premiaba >1 h continua frente a pantalla, lo contrario del objetivo).
+  { id: 'eye_breaks_3', name: 'Ojos descansados', desc: '3 pausas visuales cumplidas en una sesion', icon: '\u{1F441}' },
   { id: 'no_alerts', name: 'Ingeniero de postura', desc: 'Sesion completa sin alertas', icon: '\u{1F60E}' },
   { id: 'pomodoro_4', name: 'Productivo', desc: '4 ciclos pomodoro en una sesion', icon: '\u{2615}' },
   { id: 'streak_30', name: 'Maestro del bienestar', desc: '30 dias seguidos', icon: '\u{1F3C6}' },
@@ -33,9 +34,10 @@ export function checkAchievements(sessionData, streakDays, existingAchievements)
     if (goodPct >= 90) add('good_posture_90');
   }
 
-  if ((sessionData.elapsed || 0) >= 3600) add('hour_session');
+  if ((sessionData.eyeBreaksDone || 0) >= 3) add('eye_breaks_3');
 
-  if ((sessionData.headForwardCount || 0) + (sessionData.shoulderImbalanceCount || 0) === 0 && total > 60) {
+  if ((sessionData.alertsCount ?? ((sessionData.headForwardCount || 0) + (sessionData.shoulderImbalanceCount || 0))) === 0
+    && total > 600 && !sessionData.observationMode) {
     add('no_alerts');
   }
 

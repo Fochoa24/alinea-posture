@@ -1,17 +1,27 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
-export function useEyeRest() {
+/**
+ * Recordatorio de descanso visual 20-20-20 con intervalo configurable (minutos).
+ * Registra pausas mostradas y pausas completadas (indicador I3b de adherencia).
+ */
+export function useEyeRest(intervalMinutes = 20) {
+  const totalSeconds = Math.max(1, Math.round(intervalMinutes * 60));
   const [eyeReminder, setEyeReminder] = useState(false);
-  const [eyeCountdown, setEyeCountdown] = useState(20 * 60);
+  const [eyeCountdown, setEyeCountdown] = useState(totalSeconds);
+  const [eyeBreaks, setEyeBreaks] = useState({ shown: 0, done: 0 });
   const intervalRef = useRef(null);
+  const totalRef = useRef(totalSeconds);
+  totalRef.current = totalSeconds;
 
   const start = useCallback(() => {
-    setEyeCountdown(20 * 60);
+    clearInterval(intervalRef.current);
+    setEyeCountdown(totalRef.current);
     intervalRef.current = setInterval(() => {
       setEyeCountdown(prev => {
         if (prev <= 1) {
           setEyeReminder(true);
-          return 20 * 60;
+          setEyeBreaks(b => ({ ...b, shown: b.shown + 1 }));
+          return totalRef.current;
         }
         return prev - 1;
       });
@@ -22,14 +32,15 @@ export function useEyeRest() {
     clearInterval(intervalRef.current);
   }, []);
 
-  const dismissEye = useCallback(() => {
+  const dismissEye = useCallback((completed = true) => {
     setEyeReminder(false);
-    setEyeCountdown(20 * 60);
+    if (completed) setEyeBreaks(b => ({ ...b, done: b.done + 1 }));
+    setEyeCountdown(totalRef.current);
   }, []);
 
-  useEffect(() => {
-    return () => clearInterval(intervalRef.current);
-  }, []);
+  const resetBreaks = useCallback(() => setEyeBreaks({ shown: 0, done: 0 }), []);
 
-  return { eyeReminder, eyeCountdown, dismissEye, start, stop };
+  useEffect(() => () => clearInterval(intervalRef.current), []);
+
+  return { eyeReminder, eyeCountdown, eyeTotal: totalSeconds, eyeBreaks, dismissEye, resetBreaks, start, stop };
 }

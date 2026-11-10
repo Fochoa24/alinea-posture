@@ -5,6 +5,7 @@ import {
   saveStreakToFirestore,
   getAchievementsFromFirestore,
   saveAchievementsToFirestore,
+  deleteUserDataFromFirestore,
 } from '../firebase/firestore';
 
 const STORAGE_PREFIX = 'alinea_';
@@ -121,6 +122,41 @@ export function saveSettings(settings) {
 
 export function getSettings() {
   return lsGet('settings', null);
+}
+
+// --- Calibración personal (local: es propia de la cámara y del puesto) ---
+
+export function saveBaseline(baseline) {
+  if (baseline) lsSet('baseline', baseline);
+  else localStorage.removeItem(STORAGE_PREFIX + 'baseline');
+}
+
+export function getBaseline() {
+  return lsGet('baseline', null);
+}
+
+// --- Consentimiento informado (RF02) ---
+
+export const CONSENT_VERSION = 1;
+
+export function hasConsent() {
+  const c = lsGet('consent', null);
+  return Boolean(c && c.version === CONSENT_VERSION);
+}
+
+export function saveConsent() {
+  lsSet('consent', { version: CONSENT_VERSION, acceptedAt: new Date().toISOString() });
+}
+
+// --- Derecho de eliminación (RF08, Ley 21.719) ---
+
+export async function deleteAllUserData() {
+  if (currentUid) {
+    await deleteUserDataFromFirestore(currentUid);
+  }
+  Object.keys(localStorage)
+    .filter(k => k.startsWith(STORAGE_PREFIX))
+    .forEach(k => localStorage.removeItem(k));
 }
 
 // --- Helpers de filtrado ---
