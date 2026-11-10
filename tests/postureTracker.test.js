@@ -54,6 +54,17 @@ describe('createPostureTracker', () => {
     expect(alerts).toBeGreaterThanOrEqual(1);
   });
 
+  it('un fotograma sin detección no reinicia la mala postura sostenida', () => {
+    const tr = createPostureTracker();
+    let fired = false;
+    for (let i = 0; i < 30 * 5; i++) {
+      const detected = i % 20 !== 10; // pierde 1 de cada 20 fotogramas
+      const o = tr.update({ detected, isBadPosture: true, headForward: true }, i * (1000 / 30));
+      if (o.alertFired) fired = true;
+    }
+    expect(fired).toBe(true);
+  });
+
   it('ignora huecos largos (pestaña en segundo plano)', () => {
     const tr = createPostureTracker();
     tr.update({ detected: true, isBadPosture: false }, 0);

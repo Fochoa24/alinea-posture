@@ -15,6 +15,7 @@ export function createPostureTracker(options = {}) {
   let goodSince = null;
   let lastAlertAt = -Infinity;
   let lastFrameAt = null;
+  let lastDetectedAt = null;
   let state = 'good';
   const stats = {
     goodPostureTime: 0, // segundos
@@ -38,11 +39,17 @@ export function createPostureTracker(options = {}) {
     let alertFired = false;
 
     if (!frame.detected) {
+      // Un fotograma perdido (parpadeo del detector) no debe reiniciar el conteo:
+      // solo se considera "sin persona" si la ausencia dura más que recoveryMs.
+      if (lastDetectedAt !== null && nowMs - lastDetectedAt < cfg.recoveryMs) {
+        return { state, alertFired, stats: { ...stats } };
+      }
       badSince = null;
       goodSince = null;
       state = 'no_person';
       return { state, alertFired, stats: { ...stats } };
     }
+    lastDetectedAt = nowMs;
 
     stats.observedTime += dt;
 
@@ -80,6 +87,7 @@ export function createPostureTracker(options = {}) {
     goodSince = null;
     lastAlertAt = -Infinity;
     lastFrameAt = null;
+    lastDetectedAt = null;
     state = 'good';
     Object.keys(stats).forEach(k => { stats[k] = 0; });
   }

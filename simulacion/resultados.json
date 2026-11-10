@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "usuarios": 200,
+    "minutos_por_sesion": 10,
+    "horas_simuladas": 32.8,
+    "asimetricos": null,
+    "semilla": 20261116
+  },
+  "out": {
+    "v1": {
+      "episodios": 960,
+      "recall_pct": 78.2,
+      "latencia_mediana_s": 2.7,
+      "falsas_alertas_por_hora": 91.4,
+      "falsas_alertas_por_hora_cuerpos_asimetricos": 290.2,
+      "alertas_por_movimientos_breves_pct": 19.1,
+      "error_pct_tiempo_buena_postura": 22.4,
+      "unidades_de_tiempo_por_segundo_real": {
+        "10fps": 10,
+        "15fps": 15,
+        "30fps": 30
+      },
+      "por_fps": {
+        "10fps": {
+          "recall_pct": 81.5,
+          "latencia_mediana_s": 3
+        },
+        "15fps": {
+          "recall_pct": 73.3,
+          "latencia_mediana_s": 2
+        },
+        "30fps": {
+          "recall_pct": 79.5,
+          "latencia_mediana_s": 1.1
+        }
+      }
+    },
+    "v2_sin_calibrar": {
+      "episodios": 960,
+      "recall_pct": 64.5,
+      "latencia_mediana_s": 3.1,
+      "falsas_alertas_por_hora": 17.1,
+      "falsas_alertas_por_hora_cuerpos_asimetricos": 70.8,
+      "alertas_por_movimientos_breves_pct": 2.6,
+      "error_pct_tiempo_buena_postura": 11.8,
+      "unidades_de_tiempo_por_segundo_real": {
+        "10fps": 1,
+        "15fps": 1,
+        "30fps": 1
+      },
+      "por_fps": {
+        "10fps": {
+          "recall_pct": 67.9,
+          "latencia_mediana_s": 3.1
+        },
+        "15fps": {
+          "recall_pct": 61,
+          "latencia_mediana_s": 3.1
+        },
+        "30fps": {
+          "recall_pct": 64.2,
+          "latencia_mediana_s": 3
+        }
+      }
+    },
+    "v2_calibrado": {
+      "episodios": 960,
+      "recall_pct": 94.7,
+      "latencia_mediana_s": 3.1,
+      "falsas_alertas_por_hora": 12.4,
+      "falsas_alertas_por_hora_cuerpos_asimetricos": 12.7,
+      "alertas_por_movimientos_breves_pct": 2.8,
+      "error_pct_tiempo_buena_postura": 3.6,
+      "unidades_de_tiempo_por_segundo_real": {
+        "10fps": 1,
+        "15fps": 1,
+        "30fps": 1
+      },
+      "por_fps": {
+        "10fps": {
+          "recall_pct": 95.2,
+          "latencia_mediana_s": 3.1
+        },
+        "15fps": {
+          "recall_pct": 95.9,
+          "latencia_mediana_s": 3.1
+        },
+        "30fps": {
+          "recall_pct": 92.8,
+          "latencia_mediana_s": 3
+        }
+      }
+    }
+  }
+}
